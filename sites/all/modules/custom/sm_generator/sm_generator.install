@@ -1,0 +1,33 @@
+<?php
+
+function sm_generator_schema() {
+  $schema['sm_text'] = array(
+    'description'   => 'Prepared text of the templates',
+    'fields' => array(
+      'id' => array(
+        'type'      => 'serial',
+        'not null'  => TRUE,
+        'unsigned'  => TRUE,
+      ),
+      'tid'   => array(
+        'type'  => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {term}.tid .',
+      ),
+      'texts' => array(
+        'type'      => 'text',
+        'size'      => 'big',
+        'not null'  => TRUE,
+        'serialize' => TRUE,
+      ),
+    ),
+    'primary key'   => array('id'),
+    'indexes' => array(
+      'tid' => array('tid'),
+    ),
+  );
+
+  return $schema;
+}

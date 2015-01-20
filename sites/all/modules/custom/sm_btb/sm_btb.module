@@ -1,0 +1,90 @@
+<?php
+/**
+ * @file
+ * Main file for the Bootstrap block module
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function sm_btb_permission() {
+  return array(
+    'administer bootstrap block' => array(
+      'title' => t('Administer Bootstrap block'),
+      'description' => t('Set settings for Bootstrap block'),
+    ),
+  );
+}
+
+function sm_btb_theme_registry_alter(&$theme_registry) {
+  $theme_registry['block']['template'] = drupal_get_path('module', 'sm_btb'). '/template/block';
+  $theme_registry['block']['theme path'] = drupal_get_path('module', 'sm_btb') .'/template/' ;
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Alter block edit form to add configuration field.
+ */
+function sm_btb_form_alter(&$form, &$form_state, $form_id) {
+  if (user_access('administer bootstrap block') && ($form_id == 'block_admin_configure' || $form_id == 'block_add_block_form')) {
+    // Load statically cached block object used to display the form.
+    $block = block_load($form['module']['#value'], $form['delta']['#value']);
+
+    $form['settings']['sm_btb_button_text'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Button text'),
+      '#default_value' => isset($block->sm_btb_button_text) ? $block->sm_btb_button_text : '',
+      '#description' => t('Add button text for bootstrap  modal link.'),
+    );
+
+    $form['#submit'][] = 'sm_btb_block_admin_configure_form_submit';
+  }
+}
+
+/**
+ * Helper function: additional submit callback for block configuration pages.
+ * Save text for button in db
+ * @param $form
+ * @param $form_state
+ */
+function sm_btb_block_admin_configure_form_submit($form, $form_state) {
+  dpm($form_state);
+  if (isset($form_state['values']['sm_btb_button_text']) && $form['settings']['sm_btb_button_text']['#default_value'] != $form_state['values']['sm_btb_button_text'] && user_access('administer blocks')) {
+    db_update('block')
+      ->fields(array('sm_btb_button_text' => $form_state['values']['sm_btb_button_text']))
+      ->condition('module', $form_state['values']['module'])
+      ->condition('delta', $form_state['values']['delta'])
+      ->execute();
+    // Flush all context module cache to use the updated css_class.
+    if (module_exists('context')) {
+      cache_clear_all('context', 'cache', TRUE);
+    }
+  }
+}
+
+
+/**
+ * Implements theme_preprocess_block().
+ *
+ * Extend block's classes with any user defined classes.
+ */
+function sm_btb_preprocess_block(&$vars) {
+  $block = $vars['block'];
+  if (isset($block->sm_btb_button_text) && $block->sm_btb_button_text != '') {
+    dpm($block);
+    dpm($vars);
+    $vars['is_tb_modal']                          = 1;
+    $vars['classes_array'][]                      = 'modal';
+    $vars['classes_array'][]                      = 'fade';
+    $vars['classes_array'][]                      = 'in';
+    $vars['attributes_array']['tabindex']         = '-1';
+    $vars['attributes_array']['role']             = 'dialog';
+    $vars['attributes_array']['aria-hidden']      = 'true';
+    $title_id                                     = $vars['block_html_id'] . '-label';
+    $vars['attributes_array']['aria-labelledby']  = $title_id;
+    $vars['title_attributes_array']['id']         = $title_id;
+    $vars['title_attributes_array']['class'][]         = 'modal-title';
+//    $vars['title_prefix']['close_button']         = array('#markup' => '<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>');
+  }
+}

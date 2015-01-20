@@ -1,0 +1,286 @@
+<?php
+/**
+ * @file
+ * Code for the sm general feature.
+ */
+
+include_once 'sm_general.features.inc';
+
+/**
+ * hook_menu
+ */
+function sm_general_menu() {
+  $items['admin/config/sm'] = array(
+    'title'             => 'SM settings',
+    'description'       => 'Общие настройки для брендов(марок)/моделей',
+    'page callback'     => 'drupal_get_form',
+    'page arguments'    => array('sm_general_get_brands_model'),
+    'type'              => MENU_NORMAL_ITEM,
+    'access arguments'  => array('access administration pages'),
+    'file'              => 'sm_general.admin.inc',
+
+  );
+  return $items;
+}
+
+/**
+ * Get Brand by brand name
+ * @param $brand - sring
+ */
+function sm_general_get_term_brand_by_name($brand) {
+  $vocauto = taxonomy_vocabulary_machine_name_load("marks_auto");
+  $voctrucks = taxonomy_vocabulary_machine_name_load("marks_tracks");
+  $sql = db_select('taxonomy_term_data', 'ttd');
+  $sql->addField('ttd', 'tid');
+  $sql->addField('tbrandname', 'field_brandname_value');
+  $sql->leftJoin('field_data_field_brandname', 'tbrandname', 'ttd.tid = tbrandname.entity_id');
+  $sql->condition('ttd.vid', array($vocauto->vid, $voctrucks->vid), 'IN')
+    ->condition('tbrandname.entity_type', 'taxonomy_term', '=')
+    ->condition('tbrandname.field_brandname_value',    db_like($brand) , 'LIKE');
+//  $sql->condition()
+  $result = $sql->execute()->fetchAssoc();
+//  dpm($result);
+  $term = taxonomy_term_load($result['tid']);
+  return $term;
+}
+
+/**
+ * Get Brand by model name
+ * @param $model - string
+ */
+function sm_general_get_term_model_by_name($model) {
+  $vocmodel = taxonomy_vocabulary_machine_name_load("model");
+  $sql = db_select('taxonomy_term_data', 'ttd');
+  $sql->addField('ttd', 'tid');
+  $sql->addField('tmmodelname', 'field_modelname_value');
+  $sql->leftJoin('field_data_field_modelname', 'tmmodelname', 'ttd.tid = tmmodelname.entity_id');
+  $sql->condition('ttd.vid', array($vocmodel->vid), 'IN')
+    ->condition('tmmodelname.entity_type', 'taxonomy_term', '=')
+    ->condition('tmmodelname.field_modelname_value',    db_like($model) , 'LIKE');
+  $result = $sql->execute()->fetchAssoc();
+  $term = taxonomy_term_load($result['tid']);
+  return $term;
+}
+
+/**
+ * Get model by id
+ * @param $model - model_id or model_name
+ * @return bool
+ */
+function sm_general_get_term_model_by_id($model_id) {
+  $vocmodel = taxonomy_vocabulary_machine_name_load("model");
+  $sql = db_select('taxonomy_term_data', 'ttd');
+  $sql->addField('ttd', 'tid');
+  $sql->addField('tmmodelname', 'field_modelname_value');
+  $sql->leftJoin('field_data_field_modelname', 'tmmodelname', 'ttd.tid = tmmodelname.entity_id');
+  $sql->condition('ttd.vid', array($vocmodel->vid), 'IN')
+    ->condition('tmmodelname.entity_type', 'taxonomy_term', '=')
+    ->condition('tmmodelname.field_modelname_value',    $model_id , 'LIKE');
+  $result = $sql->execute()->fetchAssoc();
+  $term = taxonomy_term_load($result['tid']);
+  return $term;
+}
+
+/**
+ * Get lists model base on brand name
+ * @param $brand int or name of brand
+ * @return array of term tid brand or array of object term brand
+ */
+function sm_general_get_models_by_brand($brand, $object = FALSE) {
+  $brand_term = taxonomy_term_load($brand);
+  $vocmodel = taxonomy_vocabulary_machine_name_load("model");
+  $vocauto = taxonomy_vocabulary_machine_name_load("marks_auto");
+  $voctrucks = taxonomy_vocabulary_machine_name_load("marks_tracks");
+  if(empty($brand_term)) {
+    $brand_term = sm_general_get_term_brand_by_name($brand);
+  }
+  $brand_id = $brand_term->tid;
+  $sql = db_select('taxonomy_term_data', 'ttd');
+  $sql->addField('ttd', 'tid');
+  $sql->leftJoin('field_data_field_term_reference_id', 'table_ref', 'ttd.tid = table_ref.entity_id');
+  $sql->condition('ttd.vid', array($vocmodel->vid), 'IN')
+    ->condition('table_ref.field_term_reference_id_tid', $brand_id);
+
+  $result = $sql->execute()->fetchAllAssoc('tid');
+  //dpm($result);
+  if($object) {
+    $tids = array_keys($result);
+    return taxonomy_term_load_multiple($tids, array());
+  }
+  else {
+
+    return $result;
+  }
+}
+
+/**
+ * @param $model_id Model ID
+ * @param null $type_id model type ID
+ * @param bool $object if we hav get lists object than its TRUE
+ * @return mixed array of tid or array of object
+ */
+function sm_general_get_type_by_model($model_id, $type_id = NULL, $object = FALSE) {
+  $sql = db_select('taxonomy_term_data', 'taxonomy_term_data');
+  $sql->addField('taxonomy_term_data', 'tid');
+  $sql->leftJoin('taxonomy_vocabulary', 'taxonomy_vocabulary', 'taxonomy_term_data.vid = taxonomy_vocabulary.vid');
+  $sql->leftJoin('field_data_field_modelid', 'field_data_field_modelid', 'taxonomy_term_data.tid = field_data_field_modelid.entity_id');
+  $sql->leftJoin('field_data_field_typeid', 'field_data_field_typeid', 'taxonomy_term_data.tid = field_data_field_typeid.entity_id');
+  $sql->condition('field_data_field_typeid.entity_type', 'taxonomy_term')
+    ->condition('field_data_field_modelid.entity_type', 'taxonomy_term')
+    ->condition('field_data_field_modelid.field_modelid_value', db_like($model_id), 'LIKE');
+
+  if(!is_null($type_id)) {
+    $sql->condition('field_data_field_typeid.field_typeid_value', $type_id);
+  }
+  $result = $sql->execute()->fetchAllAssoc('tid');
+  if($object) {
+    $tids = array_keys($result);
+    return taxonomy_term_load_multiple($tids, array());
+  }
+  else {
+
+    return $result;
+  }
+
+}
+
+
+/**
+ * @param $node_id NodeId field NodeId in Term
+ * @param bool $object
+ * @return mixed array of tersm jbject or array of tid object
+ */
+function sm_general_get_catalog_by_nodeid($node_id, $object = FALSE) {
+
+  $sql = db_select('taxonomy_term_data', 'taxonomy_term_data');
+  $sql->addField('taxonomy_term_data', 'tid');
+  $sql->leftJoin('field_data_field_nodeid', 'field_data_field_nodeid', 'taxonomy_term_data.tid = field_data_field_nodeid.entity_id');
+  $sql->leftJoin('taxonomy_vocabulary', 'taxonomy_vocabulary', 'taxonomy_term_data.tid = field_data_field_nodeid.entity_id');
+  $sql->condition('field_data_field_nodeid.entity_type', 'taxonomy_term')
+
+    ->condition('field_data_field_nodeid.field_nodeid_value', $node_id)
+
+    ->condition('taxonomy_vocabulary.machine_name', array('catalog'), 'IN')
+    ->condition('field_data_field_nodeid.deleted', 0);
+  $result = $sql->execute()->fetchAllAssoc('tid');
+  if($object) {
+    $tids = array_keys($result);
+    return taxonomy_term_load_multiple($tids, array());
+  }
+  else {
+    return $result;
+  }
+
+}
+
+
+
+
+
+class SMGeneralSoap  {
+  public $name = '2wipe_ru';
+  public $service;
+
+  public function __construct($name = '') {
+    if(!empty($name)) {
+      $this->name = $name;
+    }
+    $this->service = $this->service_load($this->name);
+  }
+
+  /**
+   * Load WSDL service by machine name
+   * @param $name
+   * @return WSClientServiceDescription
+   */
+  public static function service_load($name) {
+    $service = wsclient_service_load($name);
+    return $service;
+  }
+
+  /**
+   * Get brand for AUTO
+   * @return mixed
+   * @throws WSClientException
+   */
+
+  public function AutoBrands(){
+    $service = $this->service_load($this->name);
+    try {
+      // 1 - марки для автомобилей
+      $result = $service->AutoCatalogManufacturersGet(1);
+      return $result->AutoCatalogManufacturersGetResult->CatalogManufacturerApiView;
+    }
+    catch (SoapFault $e) {
+      throw new WSClientException('ошибка получения данных для метода "AutoCatalogManufacturersGet"  %name', array('%name' => $this->name));
+    }
+  }
+
+  /**
+   * Получаем информацию по моделям заданного бренда
+   * @param $brand
+   * @return mixed
+   * @throws WSClientException
+   */
+  public function  AutoModelByBrand($brand) {
+
+    $service = $this->service_load($this->name);
+    try {
+      // 1 - марки для автомобилей
+      $params = array('vehicleType' => 1, 'vehicleManufacturer' => $brand);
+      if(empty($brand)) {
+        $models = $service->AutoCatalogModelsGet();
+      }
+      else {
+        $models = $service->AutoCatalogModelsGet(1, $brand);
+      }
+      return $models->AutoCatalogModelsGetResult->CatalogModelApiView;
+    }
+    catch (SoapFault $e) {
+      throw new WSClientException('ошибка получения данных для метода "AutoCatalogModelsGet модели по брендам"  %name', array('%name' => $this->name));
+    }
+  }
+
+  /**
+   * Получить древо запчастей по модели от бренда и заданному древу.
+   * СТРОГО для авто
+   */
+  public  function AutoCatalogSearchTreeGet  ($model_id, $type_id = NULL, $treeId = 0) {
+    $service = $this->service_load($this->name);
+    try {
+      // 1 - марки для автомобилей
+      if(empty($treeId)) {
+        $product_tree = $service->AutoCatalogSearchTreeGet($model_id, $type_id);
+        return $product_tree->AutoCatalogSearchTreeGetResult->CatalogTreeApiView;
+      }
+      elseif(is_null($type_id)) {
+        $product_tree = $service->AutoCatalogSearchTreeGet($model_id);
+        return $product_tree->AutoCatalogSearchTreeGetResult->CatalogTreeApiView;
+      }
+      $product_tree = $service->AutoCatalogSearchTreeGet($model_id, $type_id, $treeId);
+      return $product_tree->AutoCatalogSearchTreeGetResult->CatalogTreeApiView;
+    }
+    catch (SoapFault $e) {
+      throw new WSClientException('ошибка получения данных для метода "AutoCatalogModelsGet модели по брендам"  %name', array('%name' => $this->name));
+    }
+  }
+
+
+  /**
+   * Получить детальную информацию о модели по Бренду
+   *
+   */
+  public function AutoCatalogTypesGet($model_id) {
+
+    $service = $this->service_load($this->name);
+    try {
+      $model_info = $service->AutoCatalogTypesGet($model_id);
+      return $model_info->AutoCatalogTypesGetResult->CatalogTypeApiView;
+    }
+    catch (SoapFault $e) {
+      throw new WSClientException('ошибка получения данных для метода "AutoCatalogModelsGet модели по брендам"  %name', array('%name' => $this->name));
+    }
+
+  }
+
+}

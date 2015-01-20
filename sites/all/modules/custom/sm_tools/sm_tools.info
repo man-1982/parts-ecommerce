@@ -1,0 +1,6 @@
+name = SM tools module
+description = Contain some tools for develop and process site
+core = 7.x
+package = SM
+version = 7.x-1.0
+project = sm_tools

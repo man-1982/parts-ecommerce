@@ -1,0 +1,71 @@
+<?php
+/**
+ * @file
+ * Main file for the SM tools module
+ */
+
+/**
+ * helper function for render block
+ * @param $module_name
+ * @param $block_delta
+ */
+function sm_tools_render_block($module_name, $block_delta){
+  $block = block_load($module_name, $block_delta);
+  $block = _block_render_blocks(array($block));
+  $block_build = _block_get_renderable_array($block);
+  echo drupal_render($block_build);
+}
+
+/**
+ * helper function for reset form printed
+ * @param $form
+ */
+function sm_tools_reset_form_printed(&$form) {
+  foreach($form as $key => $element) {
+    if(is_array($element)) {
+      sm_tools_reset_form_printed($form[$key]);
+    }
+    if($key == '#printed') {
+      unset($form[$key]);
+    }
+  }
+}
+
+/**
+ * // Получить ноду типа page с заголовком Foo и значением поля field_category равным 2
+$node = entity_load_by_conditions(
+'node',
+array('type' => 'page', 'title' => 'Foo'),
+array('field_category' => array('tid' => 2))
+);
+
+// Получить термин с именем Foo из словаря с vid=3
+$term = entity_load_by_conditions(
+'taxonomy_term',
+array('name' => 'Foo', 'vid' => 3)
+);
+ * Return entity object by conditions.
+ */
+function sm_tools_entity_load_by_conditions($entity_type, $properties = NULL, $fields = NULL) {
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', $entity_type);
+  if ($properties) {
+    foreach ($properties as $name => $value) {
+      $query->propertyCondition($name, $value);
+    }
+  }
+  if ($fields) {
+    foreach ($fields as $name => $values) {
+      foreach ($values as $column => $value) {
+        $query->fieldCondition($name, $column, $value);
+      }
+    }
+  }
+  $query->range(0, 1);
+  $result = $query->execute();
+  if ($result) {
+    $id = key($result[$entity_type]);
+    $entities = entity_load($entity_type, array($id));
+    return reset($entities);
+  }
+}

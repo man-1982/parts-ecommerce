@@ -1,0 +1,7 @@
+name = sm devel
+description = Тестовые функции для разработки
+core = 7.x
+package = SM
+version = 7.x-1.0
+project = sm_devel
+features[features_api][] = api:2

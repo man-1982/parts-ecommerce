@@ -1,0 +1,419 @@
+<?php
+/**
+ * @file
+ * Drupal needs this blank file.
+ */
+
+function sm_generator_menu() {
+
+  $items['taxonomy/term/%taxonomy_term/sm_texts'] = array(
+    'title' => 'Сгенерированные тексты',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('sm_generator_load_texts',2),
+    'access arguments' => array('administer content types'),
+    'file' => 'sm_generator.pages.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 100,
+  );
+  return $items;
+}
+
+/**
+ * hook_token_info
+ */
+function sm_generator_token_info() {
+  $info['types']['site_by_brand'] = array( // define main group
+    'name' => t('Модели, Услуги, Марки'),
+    'description' => t('Модели, Услуги, Марки'),
+  );
+
+  $info['tokens']['site_by_brand']['model'] = array(
+    'name'          => t('Модель'),
+    'description'   => t('Наименование модели'),
+  );
+  $info['tokens']['site_by_brand']['brand'] = array(
+    'name'          => t('Марка'),
+    'description'   => t('Наименование марки'),
+  );
+  $info['tokens']['site_by_brand']['service'] = array(
+    'name'            => t('Услуга'),
+    'description'     => t('Наименвоание услуги'),
+  );
+  $info['tokens']['site_by_brand']['service_image_random'] = array(
+    'name'            => t('Случайное изображение для услуги'),
+    'description'     => t('Наименвоание услуги'),
+  );
+  $info['tokens']['site_by_brand']['brand_image_random'] = array(
+    'name'            => t('Случайное изображение для марки'),
+    'description'     => t('Наименвоание услуги'),
+  );
+  $info['tokens']['site_by_brand']['model_image_random'] = array(
+    'name'            => t('Случайное изображение для модели'),
+    'description'     => t('Наименвоание услуги'),
+  );
+  //*********************************************************************
+  //
+  //
+  //*********************************************************************
+  $info['types']['news_articles'] = array(
+    'name'          => 'Новости, Статьи',
+    'description'   => 'Случайные изображеня для новостей, статей'
+  );
+
+  $info['tokens']['news_articles']['news_articles_img_random'] = array(
+    'name'            => t('Случайное изображение для новостей и статей'),
+    'description'     => t('Изображение для новости и стать'),
+  );
+
+
+
+  return $info;
+}
+
+/**
+ * hook_tokens
+ * @param $type
+ * @param $tokens
+ * @param array $data
+ * @param array $options
+ * @return array
+ */
+function sm_generator_tokens($type, $tokens, array $data = array(), array $options = array()) {
+  $sanitize = !empty($options['sanitize']);
+  $replacements = array();
+  switch ($type) {
+    case 'site_by_brand':
+      foreach ($tokens as $name => $original) {
+        if (array_key_exists($name, $data)) {
+          switch ($name) {
+            case 'service_image_random':
+            case 'brand_image_random':
+            case 'model_image_random':
+              $term = $data[$name];
+              $items = field_get_items('taxonomy_term', $term,  'field_image');
+              if(empty($items)) { $replacements[$original] = ''; break;};
+              shuffle($items);
+              $image = field_view_value('taxonomy_term', $term, 'field_image', $items[0]);
+              $uri = $image['#item']['uri'];
+              $scheme = file_uri_scheme($uri);
+              if($scheme == 'public') {
+                if ($wrapper = file_stream_wrapper_get_instance_by_uri($uri)) {
+                  $path = str_replace($scheme . '://', '', $uri);
+
+                  $image_path = '/' . $wrapper->getDirectoryPath() . '/' . drupal_encode_path($path);
+                  $image['#item']['uri'] = $image_path;
+                }
+              }
+              unset($image['#item']['width']);
+              unset($image['#item']['height']);
+              $output = render($image);
+              $replacements[$original] = $output;
+              break;
+            default:
+              $replacements[$original] = $data[$name];
+              break;
+          }
+        }
+      }
+      break;
+    case 'news_articles':
+      foreach ($tokens as $name => $original) {
+        switch($name) {
+          case 'news_articles_img_random':
+            $fid = $data[$name];
+            if(empty($fid)) {
+              return;
+            }
+            if(is_array($fid)) {
+              shuffle($fid);
+              $fid = $fid[0];
+            }
+            $file = file_load($fid);
+
+            $attributes['src'] = str_replace($GLOBALS['base_url'], '', file_create_url($file->uri));
+
+            $output = '<img' . drupal_attributes($attributes) . ' />';
+            $replacements[$original] = $output;
+            break;
+          default:
+            $replacements[$original] = $data[$name];
+            break;
+        }
+      }
+
+      break;
+  }
+  return $replacements;
+}
+
+/**
+ * @param $variables
+ * @return string
+ */
+function sm_generator_theme_image($variables) {
+
+  $item = $variables['item'];
+  $image = array(
+    'path' => $item['uri'],
+  );
+
+  if (array_key_exists('alt', $item)) {
+    $image['alt'] = $item['alt'];
+  }
+
+  if (isset($item['attributes'])) {
+    $image['attributes'] = $item['attributes'];
+  }
+
+  if (isset($item['width']) && isset($item['height'])) {
+    $image['width'] = $item['width'];
+    $image['height'] = $item['height'];
+  }
+
+  // Do not output an empty 'title' attribute.
+  if (isset($item['title']) && drupal_strlen($item['title']) > 0) {
+    $image['title'] = $item['title'];
+  }
+
+
+  $attributes = $variables['attributes'];
+  $attributes['src'] = file_create_url($variables['path']);
+
+  foreach (array('width', 'height', 'alt', 'title') as $key) {
+
+    if (isset($variables[$key])) {
+      $attributes[$key] = $variables[$key];
+    }
+  }
+
+  return '<img' . drupal_attributes($attributes) . ' />';
+}
+
+
+/**
+ * Implemetation hook_form_FROM_ID_alter
+ * @param $form
+ * @param $form_state
+ * @param $form_id
+ */
+function sm_generator_form_taxonomy_form_term_alter(&$form, &$form_state, $form_id) {
+  $entities = entity_get_info();
+  $token_types = array();
+  // Scan through the list of entities for supported token entities.\
+  foreach ($entities as $entity => $info) {
+    $token_types[$entity] = !empty($info['token type']) ? $info['token type'] : $entity;
+  }
+//  dpm($token_types, 'token_types');
+  if (!isset($form['field_template'])) {
+    return ;
+  }
+  $form['token_tree'] = array(
+    '#theme' => 'token_tree',
+    '#token_types' => array('site_by_brand'),
+    '#global_types' => FALSE,
+    '#weight'   => $form['field_template']['#weight'] + 1
+  );
+
+  array_push($form['#submit'], 'sm_generator_submit_term');
+//  dpm($form, __FUNCTION__);
+}
+
+/**
+ * callback for submit form
+ * @param $form
+ * @param $form_state
+ */
+function sm_generator_submit_term($form, &$form_state) {
+  //dpm($form_state['values'], __FUNCTION__);
+  $values = $form_state['values'];
+  $tid = $values['tid'];
+  if (!isset($values['field_template']) || empty($values['field_template']['und'][0]['value'])) {
+    return ;
+  }
+  $text = $values['field_template']['und'][0]['value'];
+  sm_generator_delete_by_tid($tid);
+  $generator_class = new sm_generator_text();
+  $operations = array();
+
+  for($i=0; $i<= rand(110, 200); $i++) {
+    $operations[] = array('sm_generator_text_generator_operations_batch', array($text, $tid, $generator_class));
+  };
+  $batch = array(
+    'operations' => $operations,
+    'finished' => 'sm_generator_text_generator_batch_finished',
+  );
+  batch_set($batch);
+  $form_state['redirect'] = 'taxonomy/term/' . $tid . '/sm_texts';
+}
+
+/**
+ *
+ */
+function sm_generator_text_generator_batch_finished($success, $results, $operations) {
+  if ($success) {
+    // Here we could do something meaningful with the results.
+    // We just display the number of nodes we processed...
+//    drupal_set_message(t('@count results processed in @requests HTTP requests.', array('@count' => count($results), '@requests' => _batch_example_get_http_requests())));
+    drupal_set_message(t('Обновление/создание текстов из шаблонов завершено'));
+  }
+  else {
+    // An error occurred.
+    // $operations contains the operations that remained unprocessed.
+    $error_operation = reset($operations);
+    drupal_set_message(t('An error occurred while processing @operation with arguments : @args', array('@operation' => $error_operation[0], '@args' => print_r($error_operation[0], TRUE))));
+  }
+}
+/**
+ * Batch function
+ * @param $plan
+ * @param $title
+ * @param $body
+ * @param $deploy_name
+ * @param $pmenu_link
+ * @param $type
+ * @param int $plid
+ * @param $context
+ */
+function sm_generator_batch_operations($object, $title, $deploy_name, $pmenu_link, $type, $plid = 0, $fields = array(), $weight = 0, $menu_title = '', &$context) {
+  //               create_node($title, $deploy_name, $pmenu_link, $type, $plid = 0, $fields_array = array())
+
+  $vars = compact('title', 'deploy_name', 'pmenu_link', 'type', 'plid', 'weight', 'menu_title');
+  $vars['fields_array'] = $fields;
+  $node = $object->create_node($vars);
+
+  $context['results'][] = $node->nid . ' : ' . check_plain($node->title);
+  // Optional message displayed under the progressbar.
+  $context['message'] = t('Создали материал  "@title"', array('@title' => $node->title)) . ' nid: ' . $node->nid;
+}
+
+
+/**
+ * Генератор операция для батча
+ */
+function sm_generator_text_generator_operations_batch($text, $tid, $generator_class) {
+  $result = array();
+  $output = $generator_class->simpletext_generator($text);
+  $result[md5($output)] = $output;
+  $object = new stdClass();
+  $object->tid = $tid;
+  $object->texts = $result;
+  $primary_keys = array();
+  $fetch_col = sm_generator_check_keys($tid);
+  if(!empty($fetch_col)) {
+    $prev_texts = unserialize($fetch_col['texts']);
+    $primary_keys = array('tid');
+    $object->texts += $prev_texts;
+    $a = 1;
+  }
+
+  // Optional message displayed under the progressbar.
+  return drupal_write_record('sm_text', $object, $primary_keys);
+//  return array_values($result);
+}
+
+/**
+ * Проверяем существует ли запись по текущему термину
+ * @param $tid
+ * @return mixed
+ */
+function sm_generator_check_keys($tid) {
+  $query =  db_select('sm_text', 'dvt');
+  $query->addField('dvt', 'id');
+  $query->addField('dvt', 'texts');
+  $query->condition('tid', $tid, '=');
+  $fetchAssoc = $query->execute()->fetchAssoc();
+  return $fetchAssoc;
+}
+
+function sm_generator_delete_by_tid($tid) {
+  $query =  db_delete('sm_text');
+  $query->condition('tid', $tid, '=');
+  $query->execute();
+
+}
+
+/**
+ *
+ */
+function sm_generator_group_batch_operations_for_terms()  {
+  $voc_marks= taxonomy_vocabulary_machine_name_load('marks');
+  $voc_model_brand_services = taxonomy_vocabulary_machine_name_load('model_brand_services');
+
+}
+
+
+/**
+ * Utility function to count the HTTP requests in a session variable.
+ */
+function sm_generator_batch_update_http_requests() {
+//  $_SESSION['http_request_count']++;
+//  if($_SESSION['http_request_count'] > 19) {
+//    sleep(21);
+//    $_SESSION['http_request_count'] = 0;
+//  }
+}
+
+function sm_generator_batch_update_http_requests_get_http_requests() {
+  return !empty($_SESSION['http_request_count']) ? $_SESSION['http_request_count'] : 0;
+}
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Object factory for a deployment endpoint.
+ */
+function sm_deploy_manage_create($schema, $item) {
+  $sm_deploy_manage = new stdClass();
+  // Unserialize our serialized params.
+  foreach ($schema['fields'] as $field => $info) {
+    if (!empty($info['serialize'])) {
+      $sm_deploy_manage->{$field} = unserialize($item->{$field});
+    }
+    else {
+      $sm_deploy_manage->{$field} = $item->{$field};
+    }
+  }
+  return $sm_deploy_manage;
+}
+
+/**
+ * Loader callback for a deployment $sm_deploy_manage.
+ */
+function sm_deploy_manage_load($name) {
+  $sm_deploy_manage = sm_deploy_manage_load_all();
+  if (isset($sm_deploy_manage[$name])) {
+    return $sm_deploy_manage[$name];
+  }
+  return FALSE;
+}
+
+/**
+ * Loader callback for a deployment $sm_deploy_manage.
+ */
+function sm_deploy_manage_load_all() {
+  ctools_include('export');
+  $endpoints = ctools_export_load_object('sm_deploy_manage', 'all');
+  if (isset($endpoints)) {
+    return $endpoints;
+  }
+}
+
+/**
+ * Writes a deployment $sm_deploy_manage.
+ */
+function sm_deploy_manage_save($data) {
+
+  $sm_deploy_manage = new stdClass();
+  foreach ($data as $key => $value) {
+    $sm_deploy_manage->{$key} = $value;
+  }
+
+  $returned = ctools_export_crud_save('sm_deploy_manage', $sm_deploy_manage);
+  if (SAVED_NEW !== $returned && SAVED_UPDATED !== $returned) {
+    throw new DeployPlanException('Failed to sm_deploy_manage plan.');
+  }
+
+  return $sm_deploy_manage;
+}

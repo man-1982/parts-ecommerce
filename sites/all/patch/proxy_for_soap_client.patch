@@ -1,0 +1,41 @@
+Index: www/sites/all/modules/contrib/wsclient/wsclient_soap/wsclient_soap.module
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- www/sites/all/modules/contrib/wsclient/wsclient_soap/wsclient_soap.module	(date 1420715555000)
++++ www/sites/all/modules/contrib/wsclient/wsclient_soap/wsclient_soap.module	(revision )
+@@ -29,6 +29,14 @@
+         $options += $this->service->settings['options'];
+       }
+       try {
++        if(module_exists('http_proxy')) {
++          $options += array(
++            'proxy_host' => variable_get('proxy_server', ''),
++            'proxy_port' => variable_get('proxy_port', ''),
++            'proxy_login' => variable_get('proxy_username', ''),
++            'proxy_password' => variable_get('proxy_password', ''),
++          );
++        }
+         $this->client = new SOAPClient($this->url, $options);
+       }
+       catch (SoapFault $e) {
+@@ -102,7 +110,17 @@
+       // fatal error on invalid WSDL files (instead of a catchable SoapFault
+       // exception).
+       // xdebug_disable();
+-      @$endpoint = new SOAPClient($form_state['values']['url']);
++      $options = array();
++      if(module_exists('http_proxy')) {
++        $options += array(
++          'proxy_host' => variable_get('proxy_server', ''),
++          'proxy_port' => variable_get('proxy_port', ''),
++          'proxy_login' => variable_get('proxy_username', ''),
++          'proxy_password' => variable_get('proxy_password', ''),
++        );
++      }
++
++      @$endpoint = new SOAPClient($form_state['values']['url'], $options);
+     }
+     catch (SoapFault $e) {
+       form_set_error('url', t('Error parsing the WSDL file: %message', array('%message' => $e->getMessage())));

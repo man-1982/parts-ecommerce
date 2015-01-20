@@ -1,0 +1,6 @@
+# Ignore configuration files that may contain sensitive information.
+.sass-cache/*
+bower_components/*
+
+.sass-cache
+bower_components

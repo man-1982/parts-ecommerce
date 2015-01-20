@@ -1,0 +1,160 @@
+<?php
+
+/**
+ * implementation hook_menu
+ */
+function sm_devel_menu() {
+
+  $items['admin/config/development/sm-devel'] = array(
+    'title'             => 'SM Developers',
+    'description'       => 'Настройка для разработчика',
+    'page callback'     => 'drupal_get_form',
+    'page arguments'    => array('sm_devel_settings_form'),
+    'type'              => MENU_NORMAL_ITEM,
+    'access arguments'  => array('access administration pages'),
+  );
+
+  return $items;
+
+}
+
+/**
+ * @param string $brand
+ */
+function sm_devel_get_model_by_marks($brand = "ACURA") {
+  $server = new SMGeneralSoap();
+  $result = $server->AutoModelByBrand($brand);
+  dpm($result, $brand);
+}
+
+/**
+ * получаем список товаров по модели
+ *  GOLF IV (1J1) - 8799
+ * @param int $modelId - Model ID
+ */
+function sm_devel_get_tree_of_product($model_id = 1994, $type_id = 8799) {
+  $server = new SMGeneralSoap();
+  $result = $server->AutoCatalogSearchTreeGet($model_id, $type_id);
+  dpm($result, $model_id);
+}
+
+/**
+ * Получаем список продуктов по бренду
+ * @param string $brand
+ */
+function sm_devel_get_tree_products_by_brand($brand = "ACURA") {
+  $list_models = sm_general_get_models_by_brand($brand, TRUE);
+  $server = new SMGeneralSoap();
+  foreach($list_models as $model) {
+    $wr = entity_metadata_wrapper('taxonomy_term', $model);
+    $modelId = $wr->field_modelid->value();
+    $result = $server->AutoCatalogSearchTreeGet($model_id);
+    dpm($result, $modelId);
+  }
+}
+
+function sm_devel_get_brands() {
+  $server = new SMGeneralSoap();
+  dpm($server->AutoBrands());
+}
+
+/**
+ * получаем подробную информацию информацию по модели ПОЛНОЕ
+ * @param int $modelId 164 BMV 02 (E10)
+ */
+function sm_devel_get_model_info($modelId = 4726, $update = 0) {
+  $server = new SMGeneralSoap();
+  $result = $server->AutoCatalogTypesGet($modelId);
+  dpm($result, $modelId);
+  dpm($result[0]->ModelId, 'ModelId');
+  if(!$update) {
+    return $result;
+  }
+  module_load_include('inc', 'sm_general', 'sm_general.admin');
+  foreach($result as $type_info) {
+    $model = sm_general_get_term_model_by_id($type_info->ModelId);
+    $voc_model    = taxonomy_vocabulary_machine_name_load("model");
+    $voc_type    = taxonomy_vocabulary_machine_name_load("model_types");
+
+    $model_id = empty($type_info->ModelId) ? 0 : $type_info->ModelId;
+    if (empty($model_id)) {
+      continue;
+    }
+    $vars['field_term_ref_model_id'] = $model->tid;
+    $vars['vid'] = $voc_type->vid;
+    $vars['field_modelid'] = $model_id;
+    $vars['field_typeid'] = $type_info->TypeId;
+    $vars['field_typeengine'] = $type_info->TypeEngine;
+    $vars['field_typeenginevalueliters'] = $type_info->TypeEngineValueLiters;
+    $vars['field_typeenginevalueccm'] = $type_info->TypeEngineValueCcm;
+    $vars['field_typeenginepowerhp'] = $type_info->TypeEnginePowerHp;
+    $vars['field_typepowerkw'] = $type_info->TypeEnginePowerKw;
+    $vars['field_typeenginetype'] = $type_info->TypeEngineType;
+    $vars['field_typefuel'] = $type_info->TypeFuel;
+    $vars['field_typefueltype'] = $type_info->TypeFuelType;
+    $vars['field_typedrive'] = $type_info->TypeDrive;
+//      $vars['field_typedoors']              = $type_info->TypeDoors;
+    $vars['field_typebody'] = $type_info->TypeBody;
+    $vars['field_typecylinders'] = $type_info->TypeCylinders;
+    $vars['field_modeldatefrom'] = empty($type_info->TypeDateFrom) ? 0 : strtotime($type_info->TypeDateFrom);
+    $vars['field_modeldateto'] =  empty($type_info->TypeDateTo) ? 0 : strtotime($type_info->TypeDateTo); ;
+
+//    $batch['operations'][] = array('_sm_general_models_type_crud', array($vars));
+    _sm_general_models_type_crud($vars);
+  }
+
+
+
+//  $response = $client->__soapCall('AutoCatalogModelsGet', array('vehicleType' => 1, 'vehicleManufacturer' => "AUDI"));
+//  return $response;
+}
+
+
+function sm_devel_load_model_test($id = 58) {
+  //$term_test = entity_load('taxonomy_term', $id);
+  $term_test = taxonomy_term_load($id);
+  $term_wr = entity_metadata_wrapper('taxonomy_term', $term_test);
+  dpm($term_wr, $term_test->name);
+  dpm($term_wr->field_modeldatefrom->value(), 'field_modeldatefrom');
+}
+
+function sm_devel_settings_form($form, &$form_state) {
+  $form['sm_devel_soap'] = array(
+    '#type'           => 'checkbox',
+    '#title'          => 'Режим разработки для SOAP',
+    '#description'    => 'Логирует все SOAP запросы',
+    '#default_value'  => variable_get('sm_devel_soap', 0),
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * $model_tid tid for model term
+ * @param $model_tid
+ */
+function sm_devel_get_category_tree($model_name= "GOLF IV (1J1)") {
+  $voc_model    = taxonomy_vocabulary_machine_name_load("model");
+  $tree_model[] = sm_general_get_term_model_by_name($model_name);
+  $voc_catalog = taxonomy_vocabulary_machine_name_load('catalog');
+  $server       = new SMGeneralSoap();
+  $batch = array();
+  module_load_include('inc', 'sm_general', 'sm_general.admin');
+  foreach($tree_model as $model) {
+    if(empty($model)) {
+      drupal_set_message('Пустое значение модели');
+      continue;
+    }
+    $wr_model = entity_metadata_wrapper('taxonomy_term', $model);
+    $model_id = $wr_model->field_modelid->value();
+    if(empty($model_id)) {
+      continue;
+    }
+    $result = $server->AutoCatalogSearchTreeGet($model_id);
+    $vars['result'] = $result;
+    $vars['vid']    = $voc_catalog->vid;
+    $vars['modelid'] = $model_id;
+    $vars['parent'][0] = 0;
+    _sm_general_catalog_crud($vars);
+  }
+}

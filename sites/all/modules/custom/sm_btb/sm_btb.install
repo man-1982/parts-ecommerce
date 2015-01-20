@@ -1,0 +1,49 @@
+<?php
+/**
+ * Install, update and uninstall functions for the sm_btb module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function sm_btb_install() {
+  $schema['block'] = array();
+  sm_btb_schema_alter($schema);
+  foreach ($schema['block']['fields'] as $field => $spec) {
+    if (db_field_exists('block', $field)) {
+      watchdog('system', 'Module install: Attempt to recreate field: "%field", when it already exists.', array('%field' => $field), WATCHDOG_WARNING);
+    }
+    else {
+      db_add_field('block', $field, $spec);
+    }
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function sm_btb_uninstall() {
+  $schema['block'] = array();
+  sm_btb_schema_alter($schema);
+  foreach ($schema['block']['fields'] as $field => $specs) {
+    db_drop_field('block', $field);
+  }
+}
+
+/**
+ * Implements hook_schema_alter().
+ *
+ * Alter block table
+ */
+function sm_btb_schema_alter(&$schema) {
+  if (isset($schema['block'])) {
+    $schema['block']['fields']['sm_btb_button_text'] = array(
+      'description'   => 'String containing button text for bootstrap modal.',
+      'type'          => 'text',
+      'not null'      => TRUE,
+      'size'          => 'medium',
+      'translatable'  => TRUE,
+    );
+  }
+}
+

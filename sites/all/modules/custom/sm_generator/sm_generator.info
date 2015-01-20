@@ -1,0 +1,23 @@
+name = SM generator
+description = Генератор текста из шаблонов
+core = 7.x
+package = SM
+version = 7.x-1.1
+project = sm_generator
+
+files[] = handlers/sm_generator.class.php
+
+dependencies[] = features
+dependencies[] = taxonomy
+dependencies[] = text
+features[features_api][] = api:2
+features[field_base][] = field_template
+features[field_instance][] = taxonomy_term-applicability_parts-field_template
+features[field_instance][] = taxonomy_term-autospare_parts-field_template
+features[field_instance][] = taxonomy_term-remanufactured_parts-field_template
+features[field_instance][] = taxonomy_term-structural_numbers-field_template
+features[taxonomy][] = applicability_parts
+features[taxonomy][] = autospare_parts
+features[taxonomy][] = decription_parts
+features[taxonomy][] = remanufactured_parts
+features[taxonomy][] = structural_numbers

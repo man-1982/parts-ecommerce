@@ -1,0 +1,7 @@
+name = SM Bootstrap block
+description = Create any block as bootstrap modal  without ajax load
+core = 7.x
+package = SM
+version = 7.x-1.0
+project = sm_btb
+features[features_api][] = api:2
